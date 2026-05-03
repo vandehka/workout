@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>8 Week Lifting Tracker</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #f6f7f9;
+    color: #1f2937;
+    margin: 0;
+    padding: 24px;
+  }
+
+  .container {
+    max-width: 1100px;
+    margin: auto;
+  }
+
+  h1 {
+    margin-bottom: 4px;
+  }
+
+  .subtitle {
+    color: #6b7280;
+    margin-bottom: 24px;
+  }
+
+  .controls {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+
+  select, button, input {
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid #d1d5db;
+    font-size: 14px;
+  }
+
+  button {
+    background: #111827;
+    color: white;
+    cursor: pointer;
+  }
+
+  button:hover {
+    background: #374151;
+  }
+
+  .day-card {
+    background: white;
+    border-radius: 14px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.06);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+  }
+
+  th, td {
+    padding: 10px;
+    border-bottom: 1px solid #e5e7eb;
+    text-align: left;
+  }
+
+  th {
+    color: #6b7280;
+    font-size: 13px;
+  }
+
+  input {
+    width: 80px;
+  }
+
+  .suggestion {
+    font-weight: bold;
+    color: #047857;
+  }
+
+  .note {
+    font-size: 13px;
+    color: #6b7280;
+    margin-top: 12px;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>8 Week Lifting Tracker</h1>
+  <div class="subtitle">4 days per week. Log weight and reps. Next week adjusts automatically.</div>
+
+  <div class="controls">
+    <label>
+      Week:
+      <select id="weekSelect"></select>
+    </label>
+
+    <button onclick="saveData()">Save Progress</button>
+    <button onclick="resetData()">Reset</button>
+  </div>
+
+  <div id="workoutContainer"></div>
+</div>
+
+<script>
+const plan = {
+  "Day 1: Upper Push": [
+    { name: "Barbell Bench Press", sets: 4, reps: "5-8", start: 225, type: "upper" },
+    { name: "Incline Dumbbell Press", sets: 3, reps: "8-10", start: 85, type: "upper" },
+    { name: "Machine Shoulder Press", sets: 3, reps: "8-10", start: 140, type: "upper" },
+    { name: "Cable Chest Fly", sets: 3, reps: "10-12", start: 70, type: "upper" },
+    { name: "Tricep Rope Pushdown", sets: 3, reps: "10-12", start: 90, type: "upper" }
+  ],
+  "Day 2: Lower Strength": [
+    { name: "Back Squat", sets: 4, reps: "5-8", start: 315, type: "lower" },
+    { name: "Romanian Deadlift", sets: 4, reps: "6-8", start: 275, type: "lower" },
+    { name: "Leg Press", sets: 4, reps: "8-10", start: 540, type: "lower" },
+    { name: "Seated Leg Curl", sets: 3, reps: "10-12", start: 150, type: "lower" },
+    { name: "Standing Calf Raise", sets: 4, reps: "10-15", start: 180, type: "lower" }
+  ],
+  "Day 3: Upper Pull": [
+    { name: "Weighted Pull-Up or Lat Pulldown", sets: 4, reps: "6-8", start: 180, type: "upper" },
+    { name: "Barbell Row", sets: 4, reps: "6-8", start: 225, type: "upper" },
+    { name: "Seated Cable Row", sets: 3, reps: "8-10", start: 170, type: "upper" },
+    { name: "Rear Delt Machine", sets: 3, reps: "12-15", start: 110, type: "upper" },
+    { name: "Dumbbell Curl", sets: 3, reps: "8-12", start: 45, type: "upper" }
+  ],
+  "Day 4: Lower Hypertrophy": [
+    { name: "Deadlift", sets: 3, reps: "4-6", start: 365, type: "lower" },
+    { name: "Front Squat or Hack Squat", sets: 4, reps: "8-10", start: 225, type: "lower" },
+    { name: "Bulgarian Split Squat", sets: 3, reps: "8-10", start: 70, type: "lower" },
+    { name: "Leg Extension", sets: 3, reps: "12-15", start: 160, type: "lower" },
+    { name: "Lying Leg Curl", sets: 3, reps: "10-12", start: 130, type: "lower" }
+  ]
+};
+
+let data = JSON.parse(localStorage.getItem("liftingTracker")) || {};
+
+const weekSelect = document.getElementById("weekSelect");
+for (let i = 1; i <= 8; i++) {
+  const option = document.createElement("option");
+  option.value = i;
+  option.textContent = `Week ${i}`;
+  weekSelect.appendChild(option);
+}
+
+weekSelect.addEventListener("change", renderWorkout);
+
+function getRepRange(repString) {
+  const [min, max] = repString.split("-").map(Number);
+  return { min, max };
+}
+
+function getSuggestedWeight(exercise, week) {
+  if (week === 1) return exercise.start;
+
+  const previousKey = `week${week - 1}_${exercise.name}`;
+  const previous = data[previousKey];
+
+  if (!previous) {
+    return getSuggestedWeight(exercise, week - 1);
+  }
+
+  const { min, max } = getRepRange(exercise.reps);
+  const reps = previous.reps.map(Number).filter(n => !isNaN(n));
+  const weight = Number(previous.weight);
+
+  if (!weight || reps.length === 0) return exercise.start;
+
+  const hitTopRange = reps.length === exercise.sets && reps.every(rep => rep >= max);
+  const missedMinimum = reps.some(rep => rep < min);
+
+  if (hitTopRange) {
+    return weight + (exercise.type === "lower" ? 10 : 5);
+  }
+
+  if (missedMinimum) {
+    return Math.max(weight - (exercise.type === "lower" ? 10 : 5), 0);
+  }
+
+  return weight;
+}
+
+function renderWorkout() {
+  const week = Number(weekSelect.value);
+  const container = document.getElementById("workoutContainer");
+  container.innerHTML = "";
+
+  Object.entries(plan).forEach(([day, exercises]) => {
+    const card = document.createElement("div");
+    card.className = "day-card";
+
+    let html = `<h2>${day}</h2>`;
+    html += `
+      <table>
+        <thead>
+          <tr>
+            <th>Exercise</th>
+            <th>Sets</th>
+            <th>Target Reps</th>
+            <th>Suggested Weight</th>
+            <th>Actual Weight</th>
+            <th>Reps Each Set</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+
+    exercises.forEach(ex => {
+      const key = `week${week}_${ex.name}`;
+      const saved = data[key] || {};
+      const suggested = getSuggestedWeight(ex, week);
+
+      html += `
+        <tr>
+          <td>${ex.name}</td>
+          <td>${ex.sets}</td>
+          <td>${ex.reps}</td>
+          <td class="suggestion">${suggested} lbs</td>
+          <td>
+            <input 
+              type="number" 
+              id="${key}_weight" 
+              value="${saved.weight || suggested}" 
+            />
+          </td>
+          <td>
+            ${Array.from({ length: ex.sets }).map((_, i) => `
+              <input 
+                type="number" 
+                id="${key}_rep${i}" 
+                value="${saved.reps ? saved.reps[i] || "" : ""}" 
+                placeholder="Set ${i + 1}"
+              />
+            `).join("")}
+          </td>
+        </tr>
+      `;
+    });
+
+    html += `
+        </tbody>
+      </table>
+      <div class="note">
+        Rule: If he hits the top of the rep range on every set, next week increases by 5 lbs for upper body and 10 lbs for lower body. If he misses the minimum, it drops slightly. Otherwise, it holds.
+      </div>
+    `;
+
+    card.innerHTML = html;
+    container.appendChild(card);
+  });
+}
+
+function saveData() {
+  const week = Number(weekSelect.value);
+
+  Object.values(plan).flat().forEach(ex => {
+    const key = `week${week}_${ex.name}`;
+    const weight = document.getElementById(`${key}_weight`)?.value;
+    const reps = [];
+
+    for (let i = 0; i < ex.sets; i++) {
+      reps.push(document.getElementById(`${key}_rep${i}`)?.value || "");
+    }
+
+    data[key] = { weight, reps };
+  });
+
+  localStorage.setItem("liftingTracker", JSON.stringify(data));
+  alert("Progress saved!");
+  renderWorkout();
+}
+
+function resetData() {
+  if (confirm("Clear all saved progress?")) {
+    localStorage.removeItem("liftingTracker");
+    data = {};
+    renderWorkout();
+  }
+}
+
+renderWorkout();
+</script>
+</body>
+</html>
