@@ -11,15 +11,47 @@ body {
   background:#0b0f14;
   color:#e5e7eb;
   margin:0;
-  padding:24px;
+  padding:16px;
 }
 
-.container { max-width:1100px; margin:auto; }
+.container {
+  max-width:1000px;
+  margin:auto;
+}
 
-h1 { color:#f97316; margin-bottom:4px; }
-.subtitle { color:#9ca3af; margin-bottom:20px; }
+h1 {
+  color:#f97316;
+  margin-bottom:4px;
+}
 
-.controls { display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap; }
+.subtitle {
+  color:#9ca3af;
+  margin-bottom:16px;
+}
+
+/* Progress bar */
+.progress-container {
+  background:#1f2933;
+  border-radius:20px;
+  height:12px;
+  margin-bottom:16px;
+  overflow:hidden;
+}
+
+.progress-bar {
+  height:100%;
+  width:0%;
+  background: linear-gradient(90deg, #1e3a8a, #f97316);
+  transition: width 0.3s ease;
+}
+
+/* Controls */
+.controls {
+  display:flex;
+  gap:8px;
+  margin-bottom:16px;
+  flex-wrap:wrap;
+}
 
 select, input {
   padding:10px;
@@ -27,6 +59,7 @@ select, input {
   border:none;
   background:#1f2933;
   color:white;
+  font-size:14px;
 }
 
 button {
@@ -35,72 +68,68 @@ button {
   border-radius:10px;
   background:#1e3a8a;
   color:white;
-  cursor:pointer;
+  font-size:14px;
 }
 
-button:hover { background:#1d4ed8; }
+button:hover {
+  background:#1d4ed8;
+}
 
+/* Cards */
 .day-card {
   background:#111827;
-  border-radius:14px;
-  padding:18px;
-  margin-bottom:20px;
+  border-radius:16px;
+  padding:14px;
+  margin-bottom:18px;
   border:1px solid #1f2933;
+}
+
+/* Table fix for mobile */
+.table-wrapper {
+  overflow-x:auto;
 }
 
 table {
   width:100%;
   border-collapse:collapse;
-  margin-top:10px;
+  min-width:650px;
 }
 
 th {
   text-align:left;
   color:#9ca3af;
-  font-size:13px;
-  padding-bottom:8px;
+  font-size:12px;
+  padding-bottom:6px;
 }
 
 td {
-  padding:8px 4px;
+  padding:6px 4px;
+  white-space:nowrap;
   border-bottom:1px solid #1f2933;
+  font-size:14px;
+}
+
+td input {
+  width:65px;
+}
+
+.exercise {
+  min-width:140px;
 }
 
 .suggestion {
   color:#f97316;
   font-weight:bold;
 }
-
-/* PROGRESS BAR */
-.progress-container {
-  background:#1f2933;
-  border-radius:20px;
-  height:14px;
-  margin-bottom:20px;
-  overflow:hidden;
-}
-
-.progress-bar {
-  height:100%;
-  width:0%;
-  background: linear-gradient(90deg, #1e3a8a, #f97316);
-  transition: width 0.4s ease;
-}
-
-.progress-label {
-  font-size:12px;
-  color:#9ca3af;
-  margin-bottom:6px;
-}
 </style>
 </head>
 
 <body>
 <div class="container">
+
 <h1>8 Week Lifting Tracker</h1>
 <div class="subtitle">Log your lifts. Progress builds automatically.</div>
 
-<div class="progress-label">Program Progress</div>
 <div class="progress-container">
   <div class="progress-bar" id="progressBar"></div>
 </div>
@@ -112,6 +141,7 @@ td {
 </div>
 
 <div id="workoutContainer"></div>
+
 </div>
 
 <script>
@@ -146,95 +176,112 @@ const plan = {
 ]
 };
 
-let data = JSON.parse(localStorage.getItem("lift"))||{};
-let weekSelect=document.getElementById("weekSelect");
+let data = JSON.parse(localStorage.getItem("lift")) || {};
+let weekSelect = document.getElementById("weekSelect");
 
 for(let i=1;i<=8;i++){
-let o=document.createElement("option");
-o.value=i;o.textContent="Week "+i;
-weekSelect.appendChild(o);
+  let opt = document.createElement("option");
+  opt.value = i;
+  opt.textContent = "Week " + i;
+  weekSelect.appendChild(opt);
 }
 
-function updateProgressBar() {
-  let week = Number(weekSelect.value);
-  let percent = (week / 8) * 100;
-  document.getElementById("progressBar").style.width = percent + "%";
+function updateProgressBar(){
+  let w = Number(weekSelect.value);
+  document.getElementById("progressBar").style.width = (w/8)*100 + "%";
 }
 
-function getRange(r){let[a,b]=r.split("-").map(Number);return{a,b};}
+function getRange(r){
+  let [min,max] = r.split("-").map(Number);
+  return {min,max};
+}
 
 function getNext(ex,w){
-if(w===1)return ex.start;
-let prev=data[`w${w-1}_${ex.name}`];
-if(!prev)return ex.start;
+  if(w===1) return ex.start;
 
-let {a,b}=getRange(ex.reps);
-let reps=prev.reps.map(Number);
-let wt=Number(prev.weight);
+  let prev = data[`w${w-1}_${ex.name}`];
+  if(!prev) return ex.start;
 
-if(reps.every(r=>r>=b)) return wt+(ex.type==="lower"?10:5);
-if(reps.some(r=>r<a)) return wt-(ex.type==="lower"?10:5);
-return wt;
+  let {min,max} = getRange(ex.reps);
+  let reps = prev.reps.map(Number);
+  let weight = Number(prev.weight);
+
+  if(reps.every(r=>r>=max)) return weight + (ex.type==="lower"?10:5);
+  if(reps.some(r=>r<min)) return weight - (ex.type==="lower"?10:5);
+  return weight;
 }
 
 function render(){
-let w=Number(weekSelect.value);
-updateProgressBar();
+  let w = Number(weekSelect.value);
+  updateProgressBar();
 
-let c=document.getElementById("workoutContainer");
-c.innerHTML="";
+  let container = document.getElementById("workoutContainer");
+  container.innerHTML = "";
 
-Object.entries(plan).forEach(([day,arr])=>{
-let card=document.createElement("div");
-card.className="day-card";
+  Object.entries(plan).forEach(([day,exs])=>{
+    let card = document.createElement("div");
+    card.className = "day-card";
 
-let html=`<h2>${day}</h2><table><tr>
-<th>Exercise</th><th>Sets</th><th>Reps</th><th>Next</th><th>Weight</th><th>Sets</th></tr>`;
+    let html = `<h2>${day}</h2><div class="table-wrapper"><table>
+    <tr>
+      <th>Exercise</th>
+      <th>Sets</th>
+      <th>Reps</th>
+      <th>Next</th>
+      <th>Weight</th>
+      <th>Sets</th>
+    </tr>`;
 
-arr.forEach(ex=>{
-let key=`w${w}_${ex.name}`;
-let saved=data[key]||{};
-let next=getNext(ex,w);
+    exs.forEach(ex=>{
+      let key = `w${w}_${ex.name}`;
+      let saved = data[key] || {};
+      let next = getNext(ex,w);
 
-html+=`<tr>
-<td>${ex.name}</td>
-<td>${ex.sets}</td>
-<td>${ex.reps}</td>
-<td class="suggestion">${next}</td>
-<td><input id="${key}_w" value="${saved.weight||next}"></td>
-<td>${Array.from({length:ex.sets}).map((_,i)=>`<input id="${key}_r${i}" value="${saved.reps?saved.reps[i]||"":""}">`).join("")}</td>
-</tr>`;
-});
+      html += `<tr>
+        <td class="exercise">${ex.name}</td>
+        <td>${ex.sets}</td>
+        <td>${ex.reps}</td>
+        <td class="suggestion">${next}</td>
+        <td><input id="${key}_w" value="${saved.weight||next}"></td>
+        <td>${Array.from({length:ex.sets}).map((_,i)=>
+          `<input id="${key}_r${i}" value="${saved.reps?saved.reps[i]||"":""}">`
+        ).join("")}</td>
+      </tr>`;
+    });
 
-html+="</table>";
-card.innerHTML=html;
-c.appendChild(card);
-});
+    html += `</table></div>`;
+    card.innerHTML = html;
+    container.appendChild(card);
+  });
 }
 
 function saveData(){
-let w=Number(weekSelect.value);
-Object.values(plan).flat().forEach(ex=>{
-let key=`w${w}_${ex.name}`;
-let weight=document.getElementById(`${key}_w`).value;
-let reps=[];
-for(let i=0;i<ex.sets;i++){
-reps.push(document.getElementById(`${key}_r${i}`).value);
-}
-data[key]={weight,reps};
-});
-localStorage.setItem("lift",JSON.stringify(data));
-alert("Saved");
-render();
+  let w = Number(weekSelect.value);
+
+  Object.values(plan).flat().forEach(ex=>{
+    let key = `w${w}_${ex.name}`;
+    let weight = document.getElementById(`${key}_w`).value;
+
+    let reps = [];
+    for(let i=0;i<ex.sets;i++){
+      reps.push(document.getElementById(`${key}_r${i}`).value);
+    }
+
+    data[key] = {weight,reps};
+  });
+
+  localStorage.setItem("lift", JSON.stringify(data));
+  alert("Saved");
+  render();
 }
 
 function resetData(){
-localStorage.removeItem("lift");
-data={};
-render();
+  localStorage.removeItem("lift");
+  data = {};
+  render();
 }
 
-weekSelect.onchange=render;
+weekSelect.onchange = render;
 render();
 </script>
 
