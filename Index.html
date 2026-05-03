@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>8 Week Lifting Tracker</title>
+
+<style>
+body {
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  background:#0b0f14;
+  color:#e5e7eb;
+  margin:0;
+  padding:24px;
+}
+
+.container { max-width:1100px; margin:auto; }
+
+h1 { color:#f97316; margin-bottom:4px; }
+.subtitle { color:#9ca3af; margin-bottom:20px; }
+
+.controls { display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap; }
+
+select, input {
+  padding:10px;
+  border-radius:10px;
+  border:none;
+  background:#1f2933;
+  color:white;
+}
+
+button {
+  padding:10px 14px;
+  border:none;
+  border-radius:10px;
+  background:#1e3a8a;
+  color:white;
+  cursor:pointer;
+}
+
+button:hover { background:#1d4ed8; }
+
+.day-card {
+  background:#111827;
+  border-radius:14px;
+  padding:18px;
+  margin-bottom:20px;
+  border:1px solid #1f2933;
+}
+
+table {
+  width:100%;
+  border-collapse:collapse;
+  margin-top:10px;
+}
+
+th {
+  text-align:left;
+  color:#9ca3af;
+  font-size:13px;
+  padding-bottom:8px;
+}
+
+td {
+  padding:8px 4px;
+  border-bottom:1px solid #1f2933;
+}
+
+.suggestion {
+  color:#f97316;
+  font-weight:bold;
+}
+
+/* PROGRESS BAR */
+.progress-container {
+  background:#1f2933;
+  border-radius:20px;
+  height:14px;
+  margin-bottom:20px;
+  overflow:hidden;
+}
+
+.progress-bar {
+  height:100%;
+  width:0%;
+  background: linear-gradient(90deg, #1e3a8a, #f97316);
+  transition: width 0.4s ease;
+}
+
+.progress-label {
+  font-size:12px;
+  color:#9ca3af;
+  margin-bottom:6px;
+}
+</style>
+</head>
+
+<body>
+<div class="container">
+<h1>8 Week Lifting Tracker</h1>
+<div class="subtitle">Log your lifts. Progress builds automatically.</div>
+
+<div class="progress-label">Program Progress</div>
+<div class="progress-container">
+  <div class="progress-bar" id="progressBar"></div>
+</div>
+
+<div class="controls">
+<select id="weekSelect"></select>
+<button onclick="saveData()">Save</button>
+<button onclick="resetData()">Reset</button>
+</div>
+
+<div id="workoutContainer"></div>
+</div>
+
+<script>
+const plan = {
+"Day 1: Push":[
+{name:"Bench Press",sets:4,reps:"5-8",start:225,type:"upper"},
+{name:"Incline DB Press",sets:3,reps:"8-10",start:85,type:"upper"},
+{name:"Shoulder Press",sets:3,reps:"8-10",start:140,type:"upper"},
+{name:"Cable Fly",sets:3,reps:"10-12",start:70,type:"upper"},
+{name:"Tricep Pushdown",sets:3,reps:"10-12",start:90,type:"upper"}
+],
+"Day 2: Pull":[
+{name:"Lat Pulldown",sets:4,reps:"6-8",start:180,type:"upper"},
+{name:"Barbell Row",sets:4,reps:"6-8",start:225,type:"upper"},
+{name:"Cable Row",sets:3,reps:"8-10",start:170,type:"upper"},
+{name:"Rear Delt",sets:3,reps:"12-15",start:110,type:"upper"},
+{name:"Curl",sets:3,reps:"8-12",start:45,type:"upper"}
+],
+"Day 3: Lower":[
+{name:"Squat",sets:4,reps:"5-8",start:315,type:"lower"},
+{name:"RDL",sets:4,reps:"6-8",start:275,type:"lower"},
+{name:"Leg Press",sets:4,reps:"8-10",start:540,type:"lower"},
+{name:"Leg Curl",sets:3,reps:"10-12",start:150,type:"lower"},
+{name:"Calf Raise",sets:4,reps:"10-15",start:180,type:"lower"}
+],
+"Day 4: Upper":[
+{name:"Incline Bench",sets:4,reps:"6-8",start:205,type:"upper"},
+{name:"Row",sets:4,reps:"8-10",start:180,type:"upper"},
+{name:"Lateral Raise",sets:3,reps:"12-15",start:30,type:"upper"},
+{name:"Tricep Ext",sets:3,reps:"10-12",start:80,type:"upper"},
+{name:"EZ Curl",sets:3,reps:"10-12",start:90,type:"upper"}
+]
+};
+
+let data = JSON.parse(localStorage.getItem("lift"))||{};
+let weekSelect=document.getElementById("weekSelect");
+
+for(let i=1;i<=8;i++){
+let o=document.createElement("option");
+o.value=i;o.textContent="Week "+i;
+weekSelect.appendChild(o);
+}
+
+function updateProgressBar() {
+  let week = Number(weekSelect.value);
+  let percent = (week / 8) * 100;
+  document.getElementById("progressBar").style.width = percent + "%";
+}
+
+function getRange(r){let[a,b]=r.split("-").map(Number);return{a,b};}
+
+function getNext(ex,w){
+if(w===1)return ex.start;
+let prev=data[`w${w-1}_${ex.name}`];
+if(!prev)return ex.start;
+
+let {a,b}=getRange(ex.reps);
+let reps=prev.reps.map(Number);
+let wt=Number(prev.weight);
+
+if(reps.every(r=>r>=b)) return wt+(ex.type==="lower"?10:5);
+if(reps.some(r=>r<a)) return wt-(ex.type==="lower"?10:5);
+return wt;
+}
+
+function render(){
+let w=Number(weekSelect.value);
+updateProgressBar();
+
+let c=document.getElementById("workoutContainer");
+c.innerHTML="";
+
+Object.entries(plan).forEach(([day,arr])=>{
+let card=document.createElement("div");
+card.className="day-card";
+
+let html=`<h2>${day}</h2><table><tr>
+<th>Exercise</th><th>Sets</th><th>Reps</th><th>Next</th><th>Weight</th><th>Sets</th></tr>`;
+
+arr.forEach(ex=>{
+let key=`w${w}_${ex.name}`;
+let saved=data[key]||{};
+let next=getNext(ex,w);
+
+html+=`<tr>
+<td>${ex.name}</td>
+<td>${ex.sets}</td>
+<td>${ex.reps}</td>
+<td class="suggestion">${next}</td>
+<td><input id="${key}_w" value="${saved.weight||next}"></td>
+<td>${Array.from({length:ex.sets}).map((_,i)=>`<input id="${key}_r${i}" value="${saved.reps?saved.reps[i]||"":""}">`).join("")}</td>
+</tr>`;
+});
+
+html+="</table>";
+card.innerHTML=html;
+c.appendChild(card);
+});
+}
+
+function saveData(){
+let w=Number(weekSelect.value);
+Object.values(plan).flat().forEach(ex=>{
+let key=`w${w}_${ex.name}`;
+let weight=document.getElementById(`${key}_w`).value;
+let reps=[];
+for(let i=0;i<ex.sets;i++){
+reps.push(document.getElementById(`${key}_r${i}`).value);
+}
+data[key]={weight,reps};
+});
+localStorage.setItem("lift",JSON.stringify(data));
+alert("Saved");
+render();
+}
+
+function resetData(){
+localStorage.removeItem("lift");
+data={};
+render();
+}
+
+weekSelect.onchange=render;
+render();
+</script>
+
+</body>
+</html>
